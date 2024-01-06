@@ -697,6 +697,115 @@ RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value
   return RC::GENERIC_ERROR;
 }
 
+RC Table::update_record(Trx *trx, const char *attr_name, Record *record, Value *value)
+{
+  // 初始化返回码
+  RC rc = RC::SUCCESS;
+
+  // 如果存在事务，则初始化事务信息
+  if (trx != nullptr) {
+    trx->init_trx_info(this, *record);
+  }
+
+  // 初始化变量，用于记录属性的偏移、长度和记录的大小等信息
+  bool is_index = false;
+  int field_offset = -1;
+  int field_length = -1;
+  int record_size = table_meta_.record_size();
+  const int sys_field_num = table_meta_.sys_field_num();
+  const int user_field_num = table_meta_.field_num() - sys_field_num;
+
+  // 遍历表的字段，查找匹配的属性名
+  for (int i = 0; i < user_field_num; i++) {
+    const FieldMeta *field_meta = table_meta_.field(i + sys_field_num);
+    const char *field_name = field_meta->name();
+
+    // 找到匹配的属性
+    if (0 != strcmp(field_name, attr_name)) {
+      continue;
+    }
+
+    // 检查属性类型是否匹配
+    const AttrType field_type = field_meta->type();
+    const AttrType value_type = value->type;
+    if (field_type != value_type) {  // TODO 尝试将值的类型转换为属性类型
+      LOG_WARN("字段类型不匹配。表=%s, 字段=%s, 字段类型=%d, 值类型=%d",
+          name(),
+          field_meta->name(),
+          field_type,
+          value_type);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+
+    // 记录属性的偏移、长度，并检查是否为索引字段
+    field_offset = field_meta->offset();
+    field_length = field_meta->len();
+    if (nullptr != find_index_by_field(field_name)) {
+      is_index = true;
+    }
+    break;
+  }
+
+  // 检查新值是否与旧值相同，若相同则返回重复键的错误码
+  if (0 == memcmp(record->data() + field_offset, value->data, field_length)) {
+    LOG_WARN("重复的值");
+    return RC::RECORD_DUPLICATE_KEY;
+  }
+
+  // 备份旧记录数据
+  char *old_data = record->data();
+  char *data = new char[record_size];  // 新记录的数据
+  memcpy(data, old_data, record_size);
+  memcpy(data + field_offset, value->data, field_length);
+  record->set_data(data);
+
+  // 为新记录添加索引项
+  if (is_index) {
+    rc = insert_entry_of_indexes(record->data(), record->rid());
+    if (rc != RC::SUCCESS) {
+      // 如果添加索引失败，则回滚索引数据
+      RC rc2 = delete_entry_of_indexes(record->data(), record->rid(), true);
+      if (rc2 != RC::SUCCESS) {
+        LOG_ERROR("在插入索引项失败时回滚索引数据失败。表名=%s, rc=%d:%s",
+            name(),
+            rc2,
+            strrc(rc2));
+      }
+      return rc;
+    }
+  }
+
+  // 更新记录数据
+  rc = record_handler_->update_record(record);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR(
+        "更新记录失败 (rid=%d.%d). rc=%d:%s", record->rid().page_num, record->rid().slot_num, rc, strrc(rc));
+    return rc;
+  }
+
+  // 删除旧记录的索引项
+  if (is_index) {
+    rc = delete_entry_of_indexes(old_data, record->rid(), false);
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("删除记录的索引项失败 (rid=%d.%d). rc=%d:%s",
+          record->rid().page_num,
+          record->rid().slot_num,
+          rc,
+          strrc(rc));
+    }
+    return rc;
+  }
+
+  // 为事务创建记录
+  if (trx != nullptr) {
+    trx->update_record(this, record);
+
+    // TO DO CLOG
+  }
+
+  return rc;
+}
+
 class RecordDeleter {
 public:
   RecordDeleter(Table &table, Trx *trx) : table_(table), trx_(trx)

@@ -31,6 +31,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/index_scan_operator.h"
 #include "sql/operator/predicate_operator.h"
 #include "sql/operator/delete_operator.h"
+#include "sql/operator/update_operator.h"
 #include "sql/operator/project_operator.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
@@ -144,6 +145,7 @@ void ExecuteStage::handle_request(common::StageEvent *event)
     } break;
     case StmtType::UPDATE: {
       //do_update((UpdateStmt *)stmt, session_event);
+      do_update(sql_event);
     } break;
     case StmtType::DELETE: {
       do_delete(sql_event);
@@ -650,6 +652,54 @@ RC ExecuteStage::do_delete(SQLStageEvent *sql_event)
   }
   return rc;
 }
+
+RC ExecuteStage::do_update(SQLStageEvent *sql_event)
+{
+  // 初始化返回码
+  RC rc = RC::SUCCESS;
+
+  // 获取语句、会话事件、会话、数据库、事务和日志管理器等相关对象
+  Stmt *stmt = sql_event->stmt();
+  SessionEvent *session_event = sql_event->session_event();
+  Session *session = session_event->session();
+  Db *db = session->get_current_db();
+  Trx *trx = session->current_trx();
+  CLogManager *clog_manager = db->get_clog_manager();
+
+  // 检查语句是否为空
+  if (stmt == nullptr) {
+    LOG_WARN("无法找到语句");
+    return RC::GENERIC_ERROR;
+  }
+
+  // 转换为更新语句对象
+  UpdateStmt *update_stmt = (UpdateStmt *)stmt;
+
+  // 初始化表扫描操作符、谓词操作符和更新操作符
+  TableScanOperator scan_oper(update_stmt->table());
+  PredicateOperator pred_oper(update_stmt->filter_stmt());
+  pred_oper.add_child(&scan_oper);
+  UpdateOperator update_oper(update_stmt, trx);
+  update_oper.add_child(&pred_oper);
+
+  // 打开更新操作符
+  rc = update_oper.open();
+
+  // 根据打开结果设置会话响应
+  if (rc != RC::SUCCESS) {
+    session_event->set_response("FAILURE\n");
+  } else {
+    session_event->set_response("SUCCESS\n");
+
+    // TODO 处理 trx_multi_operation_mode
+
+    // 输出成功更新的行数信息
+    LOG_INFO("成功更新 %d 行", update_oper.row_num());
+  }
+
+  return rc;
+}
+
 
 RC ExecuteStage::do_begin(SQLStageEvent *sql_event)
 {

@@ -8,6 +8,8 @@ src/observer/storage/common/db.cpp -> drop_table
 src/observer/storage/common/table.cpp -> remove
 src/observer/storage/trx/trx.cpp -> delete_table
 
+宏观思路:追踪程序的运行逻辑,在相应的位置添加具体的功能支持.
+
 通过跟踪相关运行流程可知,我们首先需要定位到src/observer/sql/executor/execute_stage.cpp,在这里实现了相对应的功能.
 
 应该注意到其中SCF_DROP_TABLE为空实现,于是我们需要从这里添加对该功能的支持,仿照已经实现了的逻辑,我们在这个case中添加函数入口,调用do_drop_table函数,处理相应的session_event:sql_event.该函数位于~/sql/executor/execute_stage.cpp中,同时在.h文件中添加声明.

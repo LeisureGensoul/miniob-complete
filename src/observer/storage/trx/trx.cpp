@@ -112,6 +112,37 @@ RC Trx::delete_record(Table *table, Record *record)
   return rc;
 }
 
+RC Trx::update_record(Table *table, Record *record)
+{
+  // 初始化返回码
+  RC rc = RC::SUCCESS;
+
+  // 若事务未启动，则启动事务
+  start_if_not_started();
+
+  // 查找与记录关联的旧操作
+  Operation *old_oper = find_operation(table, record->rid());
+
+  // 如果找到旧操作
+  if (old_oper != nullptr) {
+    // 如果旧操作类型是插入或更新
+    if (old_oper->type() == Operation::Type::INSERT || old_oper->type() == Operation::Type::UPDATE) {
+      // 删除旧操作，插入新的更新操作
+      delete_operation(table, record->rid());
+      insert_operation(table, Operation::Type::UPDATE, record->rid());
+      return RC::SUCCESS;
+    } else {
+      // 如果旧操作类型不是插入或更新，则返回通用错误
+      return RC::GENERIC_ERROR;
+    }
+  }
+
+  // 如果未找到旧操作，则插入新的更新操作
+  insert_operation(table, Operation::Type::UPDATE, record->rid());
+
+  return rc;
+}
+
 void Trx::set_record_trx_id(Table *table, Record &record, int32_t trx_id, bool deleted) const
 {
   const FieldMeta *trx_field = table->table_meta().trx_field();
