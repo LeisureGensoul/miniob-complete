@@ -1,5 +1,8 @@
 # Finish the drop-table
 
+1. 删除表，清除表相关的资源。
+2. 要删除所有与表关联的数据，不仅包括磁盘中的文件，还包括内存中的索引等数据。
+
 src/observer/sql/executor/execute_stage.cpp -> handle_request/do_drop_table
 src/observer/storage/common/db.cpp -> drop_table
 src/observer/storage/common/table.cpp -> remove
