@@ -3,7 +3,6 @@
 ./deps/jsoncpp
 build/*
 cmake-build-*/*
-.vscode/*
 .DS_Store
 .idea
 .ccls-cache
