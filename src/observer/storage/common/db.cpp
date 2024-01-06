@@ -84,6 +84,28 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfo 
   return RC::SUCCESS;
 }
 
+RC Db::drop_table(const char *table_name)
+{
+  // check table_name
+  // 检查表名是否存在于打开的表集合中
+  auto iter = opened_tables_.find(table_name);
+  if (iter == opened_tables_.end()) {
+    // 若表名不存在，输出警告信息并返回相应错误码
+    LOG_WARN("there is not table %s in current db.", table_name);
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  // 释放表对象的内存
+  Table *table = iter->second;
+  table->remove(table_name);
+  delete table;
+
+  // 获取表对象并从表集合中移除
+  opened_tables_.erase(iter);
+  LOG_INFO("Drop table success. table name=%s", table_name);
+  return RC::SUCCESS;
+}
+
 Table *Db::find_table(const char *table_name) const
 {
   std::unordered_map<std::string, Table *>::const_iterator iter = opened_tables_.find(table_name);

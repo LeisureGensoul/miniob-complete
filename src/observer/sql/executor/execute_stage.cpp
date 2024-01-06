@@ -170,7 +170,9 @@ void ExecuteStage::handle_request(common::StageEvent *event)
       do_desc_table(sql_event);
     } break;
 
-    case SCF_DROP_TABLE:
+    case SCF_DROP_TABLE: {
+      do_drop_table(sql_event);
+    } break;
     case SCF_DROP_INDEX:
     case SCF_LOAD_DATA: {
       default_storage_stage_->handle_event(event);
@@ -477,6 +479,37 @@ RC ExecuteStage::do_create_table(SQLStageEvent *sql_event)
   }
   return rc;
 }
+
+RC ExecuteStage::do_drop_table(SQLStageEvent *sql_event)
+{
+  // 提取相关对象和信息
+  const DropTable &drop_table = sql_event->query()->sstr.drop_table;
+  SessionEvent *session_event = sql_event->session_event();
+  // Db *db = session_event->session()->get_current_db();
+  Session *session = session_event->session();
+  Db *db = session->get_current_db();
+
+  Trx *trx = session->current_trx();
+  // handle trx here or passed in db->drop_table
+
+  // 查找表
+  Table *table = db->find_table(drop_table.relation_name);
+  
+  // 在事务中删除表（如果存在）
+  if (nullptr != trx) {
+    trx->delete_table(table);
+  }
+
+  // 尝试删除表，并设置响应
+  RC rc = db->drop_table(drop_table.relation_name);
+  if (rc == RC::SUCCESS) {
+    session_event->set_response("SUCCESS\n");
+  } else {
+    session_event->set_response("FAILURE\n");
+  }
+  return rc;
+}
+
 RC ExecuteStage::do_create_index(SQLStageEvent *sql_event)
 {
   SessionEvent *session_event = sql_event->session_event();
