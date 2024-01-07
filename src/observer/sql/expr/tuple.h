@@ -42,9 +42,24 @@ public:
 
   void set_alias(const char *alias)
   {
-    this->alias_ = alias;
+    // this->alias_ = alias;
+    alias_ = std::shared_ptr<std::string>(new std::string(alias));
   }
+  // const char *alias() const
+  // {
+  //   return alias_;
+  // }
   const char *alias() const
+  {
+    return alias_.get()->c_str();
+  }
+
+  void set_alias(std::shared_ptr<std::string> ptr)
+  {
+    alias_ = ptr;
+  }
+
+  std::shared_ptr<std::string> get_alias_ptr()
   {
     return alias_;
   }
@@ -55,7 +70,9 @@ public:
   }
 
 private:
-  const char *alias_ = nullptr;
+  // const char *alias_ = nullptr;
+  // const std::string* alias_ = nullptr;
+  std::shared_ptr<std::string> alias_ = nullptr;
   Expression *expression_ = nullptr;
 };
 
@@ -70,6 +87,17 @@ public:
   virtual RC  find_cell(const Field &field, TupleCell &cell) const = 0;
 
   virtual RC  cell_spec_at(int index, const TupleCellSpec *&spec) const = 0;
+
+    // push back records of the tuple to arg:record
+  virtual void get_record(CompoundRecord &record) const = 0;
+
+  // this func will set all records
+  // invoke this func will erase begin arg:record
+  virtual void set_record(CompoundRecord &record) = 0;
+
+  // this will not set all records
+  // invoke this func will erase end arg:record
+  virtual void set_right_record(CompoundRecord &record) = 0;
 };
 
 class RowTuple : public Tuple
@@ -82,6 +110,19 @@ public:
       delete spec;
     }
     speces_.clear();
+  }
+
+  void set_record(CompoundRecord &record) override
+  {
+    assert(record.size() >= 1);
+    this->record_ = record.front();
+    record.erase(record.begin());
+  }
+
+  void set_right_record(CompoundRecord &record) override
+  {
+    assert(!record.empty());
+    set_record(record);
   }
   
   void set_record(Record *record)
@@ -156,6 +197,12 @@ public:
   {
     return *record_;
   }
+
+  void get_record(CompoundRecord &record) const override
+  {
+    record.emplace_back(record_);
+  }
+
 private:
   Record *record_ = nullptr;
   const Table *table_ = nullptr;
@@ -225,7 +272,110 @@ public:
     spec = speces_[index];
     return RC::SUCCESS;
   }
+
+  void get_record(CompoundRecord &record) const override
+  {
+    tuple_->get_record(record);
+  }
+
+  void set_record(CompoundRecord &record) override
+  {
+    tuple_->set_record(record);
+  }
+
+  void set_right_record(CompoundRecord &record) override
+  {
+    tuple_->set_right_record(record);
+  }
+
 private:
   std::vector<TupleCellSpec *> speces_;
   Tuple *tuple_ = nullptr;
+};
+
+class CompoundTuple : public Tuple {
+public:
+  CompoundTuple() = default;
+  CompoundTuple(Tuple *left, Tuple *right) : left_tup_(left), right_tup_(right) {}
+  virtual ~CompoundTuple() = default;
+
+  // 初始化左右两个元组
+  void init(Tuple *left, Tuple *right)
+  {
+    left_tup_ = left;
+    right_tup_ = right;
+  }
+
+  // 设置右表记录
+  void set_right_record(CompoundRecord &record) override
+  {
+    right_tup_->set_right_record(record);
+    assert(record.empty());
+  }
+
+  // 设置整体记录
+  void set_record(CompoundRecord &record) override
+  {
+    left_tup_->set_record(record);
+    right_tup_->set_record(record);
+  }
+
+  // 获取元组中的总单元数
+  int cell_num() const override
+  {
+    return left_tup_->cell_num() + right_tup_->cell_num();
+  }
+
+  // 获取指定索引处的单元
+  RC cell_at(int index, TupleCell &cell) const override
+  {
+    if (index < 0 || index >= cell_num()) {
+      return RC::INVALID_ARGUMENT;
+    }
+
+    int num = left_tup_->cell_num();
+    if (index < num) {
+      return left_tup_->cell_at(index, cell);
+    }
+
+    return right_tup_->cell_at(index - num, cell);
+  }
+
+  // 查找具有指定字段的单元
+  RC find_cell(const Field &field, TupleCell &cell) const override
+  {
+    // 先在左表中查找，如果找不到则在右表中查找
+    if (RC::SUCCESS != left_tup_->find_cell(field, cell)) {
+      return right_tup_->find_cell(field, cell);
+    }
+
+    return RC::SUCCESS;
+  }
+
+  // 获取指定索引处的单元规格
+  RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
+  {
+    if (index < 0 || index >= cell_num()) {
+      return RC::INVALID_ARGUMENT;
+    }
+
+    int num = left_tup_->cell_num();
+    if (index < num) {
+      return left_tup_->cell_spec_at(index, spec);
+    }
+
+    return right_tup_->cell_spec_at(index - num, spec);
+  }
+
+  // 获取元组的整体记录
+  void get_record(CompoundRecord &record) const override
+  {
+    left_tup_->get_record(record);
+    right_tup_->get_record(record);
+  }
+
+private:
+  // 左表和右表的指针
+  Tuple *left_tup_;
+  Tuple *right_tup_;
 };
