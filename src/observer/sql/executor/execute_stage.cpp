@@ -695,7 +695,8 @@ RC ExecuteStage::do_show_index(SQLStageEvent *sql_event)
     table->table_meta().show_index(ss);
   } else {
     // 表格不存在的情况下，输出错误信息
-    ss << "No such table: " << table_name << std::endl;
+    // ss << "No such table: " << table_name << std::endl;
+    ss << "FAILURE" << std::endl;
   }
   // 将输出信息设置到会话事件的响应中
   sql_event->session_event()->set_response(ss.str().c_str());
