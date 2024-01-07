@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "json/json.h"
 
 const static Json::StaticString FIELD_NAME("name");
+const static Json::StaticString UNIQUE_OR_NOT("unique");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
 
 RC IndexMeta::init(const char *name, const FieldMeta &field)
@@ -39,14 +40,21 @@ void IndexMeta::to_json(Json::Value &json_value) const
 {
   json_value[FIELD_NAME] = name_;
   json_value[FIELD_FIELD_NAME] = field_;
+  json_value[UNIQUE_OR_NOT] = unique_;
 }
 
 RC IndexMeta::from_json(const TableMeta &table, const Json::Value &json_value, IndexMeta &index)
 {
   const Json::Value &name_value = json_value[FIELD_NAME];
+  const Json::Value &unique_value = json_value[UNIQUE_OR_NOT];
   const Json::Value &field_value = json_value[FIELD_FIELD_NAME];
   if (!name_value.isString()) {
     LOG_ERROR("Index name is not a string. json value=%s", name_value.toStyledString().c_str());
+    return RC::GENERIC_ERROR;
+  }
+
+  if (!unique_value.isBool()) {
+    LOG_ERROR("Unique is not a boolean. json value=%s", unique_value.toStyledString().c_str());
     return RC::GENERIC_ERROR;
   }
 
@@ -76,13 +84,19 @@ const char *IndexMeta::field() const
   return field_.c_str();
 }
 
+const bool IndexMeta::is_unique() const
+{
+  return unique_;
+}
+
 void IndexMeta::desc(std::ostream &os) const
 {
   os << "index name=" << name_ << ", field=" << field_;
 }
 
-void IndexMeta::show(std::ostream &os) const
+void IndexMeta::show(std::ostream &os, const char *table_name) const
 {
   // 打印子函数.
-  os << 1 << " | " << name_ << " | " << 1 << " | " << field_;
+  // os << 1 << " | " << name_ << " | " << 1 << " | " << field_;
+  os << table_name << " | " << (unique_ ? 0 : 1) << " | " << name_ << " | " << 1 << " | " << field_ << std::endl;
 }

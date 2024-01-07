@@ -36,13 +36,17 @@ public:
   const char *field() const;
 
   void desc(std::ostream &os) const;
-  void show(std::ostream &os) const;
+  // void show(std::ostream &os) const;
+  void show(std::ostream &os, const char *table_name) const;
+
+  const bool is_unique() const;
 
 public:
   void to_json(Json::Value &json_value) const;
   static RC from_json(const TableMeta &table, const Json::Value &json_value, IndexMeta &index);
 
 protected:
+  bool unique_ = false;             // wether unique index
   std::string name_;   // index's name
   std::string field_;  // field's name
 };

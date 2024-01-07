@@ -331,10 +331,12 @@ void TableMeta::show_index(std::ostream &os) const
      << " | "
      << "Column_name" << std::endl;
 
+  const char *table_name = name();
   // 循环答应出该表中存在的index.
   for (const auto &index : indexes_) {
-    os << name_ << " | ";
-    index.show(os);
-    os << std::endl;
+    // os << name_ << " | ";
+    // index.show(os);
+    // os << std::endl;
+    index.show(os, table_name);
   }
 }

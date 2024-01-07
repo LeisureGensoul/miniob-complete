@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Wangyunlai on 2021/5/13.
 //
 
+#include <cstddef>
 #include <json/value.h>
 #include <limits.h>
 #include <string.h>
@@ -305,6 +306,9 @@ RC Table::insert_record(Trx *trx, Record *record)
             rc2,
             strrc(rc2));
       }
+      if (trx != nullptr) {
+        rc2 = trx->delete_record(this, record);
+      }
       return rc;
     }
   }
@@ -393,6 +397,10 @@ RC Table::insert_record(Trx *trx, int value_num, std::vector<Row> *rows)
   for (int i = 0; i < row_amount; i++) {
     char *record_data;
     const Value *values = rows->at(i).values;
+    if (nullptr == values) {
+      LOG_ERROR("Invalid argument. table name: %s, values=%p", name(), values);
+      return RC::INVALID_ARGUMENT;
+    }
 
     // 创建记录的数据
     rc = make_record(value_num, values, record_data);
@@ -412,7 +420,7 @@ RC Table::insert_record(Trx *trx, int value_num, std::vector<Row> *rows)
     if (RC::SUCCESS != rc) {
       LOG_ERROR("Failed to insert a record. rc=%d:%s", rc, strrc(rc));
 
-      for (int j = 0; j < records_done.size(); j++) {
+      for (size_t j = 0; j < records_done.size(); j++) {
         rc = delete_record(trx, &records_done[j]);
         if (RC::SUCCESS != rc) {
           LOG_ERROR("Failed to rollback record [%p]. rc=%d:%s", records_done[j], rc, strrc(rc));
@@ -694,7 +702,7 @@ static RC insert_index_record_reader_adapter(Record *record, void *context)
   return inserter.insert_index(record);
 }
 
-RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_name)
+RC Table::create_index(Trx *trx, bool unique, const char *index_name, const char *attribute_name)
 {
   if (common::is_blank(index_name) || common::is_blank(attribute_name)) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
