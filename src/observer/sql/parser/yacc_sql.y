@@ -107,6 +107,8 @@ ParserContext *get_context(yyscan_t scanner)
         LOAD
         DATA
         INFILE
+		NOT
+        LIKE
         EQ
         LT
         GT
@@ -600,6 +602,8 @@ comOp:
     | LE { CONTEXT->comp = LESS_EQUAL; }
     | GE { CONTEXT->comp = GREAT_EQUAL; }
     | NE { CONTEXT->comp = NOT_EQUAL; }
+	| LIKE { CONTEXT->comp = LIKE_OP; }
+    | NOT LIKE { CONTEXT->comp = NOT_LIKE_OP; }
     ;
 
 load_data:
