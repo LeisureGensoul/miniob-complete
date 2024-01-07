@@ -180,6 +180,9 @@ void ExecuteStage::handle_request(common::StageEvent *event)
       do_desc_table(sql_event);
     } break;
 
+    case SCF_SHOW_INDEX: {
+      do_show_index(sql_event);
+    } break;
     case SCF_DROP_TABLE: {
       do_drop_table(sql_event);
     } break;
@@ -673,6 +676,31 @@ RC ExecuteStage::do_desc_table(SQLStageEvent *sql_event)
   }
   sql_event->session_event()->set_response(ss.str().c_str());
   return RC::SUCCESS;
+}
+
+RC ExecuteStage::do_show_index(SQLStageEvent *sql_event)
+{
+  RC rc = RC::SUCCESS;
+  // 获取查询对象和数据库
+  Query *query = sql_event->query();
+  Db *db = sql_event->session_event()->session()->get_current_db();
+  // 获取表格名称
+  const char *table_name = query->sstr.desc_table.relation_name;
+  // 查找表格
+  Table *table = db->find_table(table_name);
+  // 字符串流用于存储输出信息
+  std::stringstream ss;
+  // 如果表格存在，展示其索引信息
+  if (table != nullptr) {
+    table->table_meta().show_index(ss);
+  } else {
+    // 表格不存在的情况下，输出错误信息
+    ss << "No such table: " << table_name << std::endl;
+  }
+  // 将输出信息设置到会话事件的响应中
+  sql_event->session_event()->set_response(ss.str().c_str());
+  // 返回操作结果码
+  return rc;
 }
 
 RC ExecuteStage::do_insert(SQLStageEvent *sql_event)
