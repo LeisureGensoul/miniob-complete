@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
 #include "common/lang/lower_bound.h"
+#include <bits/types/FILE.h>
 
 #define FIRST_INDEX_PAGE 1
 
@@ -734,7 +735,7 @@ RC BplusTreeHandler::sync()
   return disk_buffer_pool_->flush_all_pages();
 }
 
-RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_length,
+RC BplusTreeHandler::create(const char *file_name, bool unique, AttrType attr_type, int attr_length,
 			    int internal_max_size /* = -1*/, int leaf_max_size /* = -1 */)
 {
   BufferPoolManager &bpm = BufferPoolManager::instance();
@@ -777,6 +778,7 @@ RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_
 
   char *pdata = header_frame->data();
   IndexFileHeader *file_header = (IndexFileHeader *)pdata;
+  file_header->unique = unique;
   file_header->attr_length = attr_length;
   file_header->key_length = attr_length + sizeof(RID);
   file_header->attr_type = attr_type;
@@ -799,7 +801,7 @@ RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_
     return RC::NOMEM;
   }
 
-  key_comparator_.init(file_header->attr_type, file_header->attr_length);
+  key_comparator_.init(unique, file_header->attr_type, file_header->attr_length);
   key_printer_.init(file_header->attr_type, file_header->attr_length);
   LOG_INFO("Successfully create index %s", file_name);
   return RC::SUCCESS;
@@ -843,7 +845,7 @@ RC BplusTreeHandler::open(const char *file_name)
   // close old page_handle
   disk_buffer_pool->unpin_page(frame);
 
-  key_comparator_.init(file_header_.attr_type, file_header_.attr_length);
+  key_comparator_.init(file_header_.unique, file_header_.attr_type, file_header_.attr_length);
   key_printer_.init(file_header_.attr_type, file_header_.attr_length);
   LOG_INFO("Successfully open index %s", file_name);
   return RC::SUCCESS;

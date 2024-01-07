@@ -69,8 +69,9 @@ private:
 class KeyComparator
 {
 public:
-  void init(AttrType type, int length)
+  void init(bool unique, AttrType type, int length)
   {
+    unique = unique;
     attr_comparator_.init(type, length);
   }
 
@@ -80,7 +81,7 @@ public:
 
   int operator() (const char *v1, const char *v2) const {
     int result = attr_comparator_(v1, v2);
-    if (result != 0) {
+    if (unique_ || result != 0) {
       return result;
     }
 
@@ -90,6 +91,7 @@ public:
   }
 
 private:
+  bool unique_;
   AttrComparator attr_comparator_;
 };
 
@@ -172,6 +174,7 @@ struct IndexFileHeader {
     memset(this, 0, sizeof(IndexFileHeader));
     root_page = BP_INVALID_PAGE_NUM;
   }
+  bool unique;
   PageNum  root_page;
   int32_t  internal_max_size;
   int32_t  leaf_max_size;
@@ -386,7 +389,7 @@ public:
    * 此函数创建一个名为fileName的索引。
    * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
    */
-  RC create(const char *file_name, AttrType attr_type, int attr_length,
+  RC create(const char *file_name, bool unique, AttrType attr_type, int attr_length,
 	    int internal_max_size = -1, int leaf_max_size = -1);
 
   /**
@@ -484,7 +487,7 @@ protected:
   bool header_dirty_ = false;
   IndexFileHeader file_header_;
 
-  KeyComparator key_comparator_;
+  KeyComparrator key_comparator_;
   KeyPrinter    key_printer_;
 
   common::MemPoolItem *mem_pool_item_ = nullptr;

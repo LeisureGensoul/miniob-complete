@@ -29,7 +29,7 @@ class IndexMeta {
 public:
   IndexMeta() = default;
 
-  RC init(const char *name, const FieldMeta &field);
+  RC init(const char *name, bool unique, const FieldMeta &field);
 
 public:
   const char *name() const;
