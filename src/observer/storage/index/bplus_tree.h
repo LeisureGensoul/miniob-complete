@@ -487,7 +487,7 @@ protected:
   bool header_dirty_ = false;
   IndexFileHeader file_header_;
 
-  KeyComparrator key_comparator_;
+  KeyComparator key_comparator_;
   KeyPrinter    key_printer_;
 
   common::MemPoolItem *mem_pool_item_ = nullptr;
