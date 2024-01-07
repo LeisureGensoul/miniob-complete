@@ -71,7 +71,7 @@ class KeyComparator
 public:
   void init(bool unique, AttrType type, int length)
   {
-    unique = unique;
+    unique_ = unique;
     attr_comparator_.init(type, length);
   }
 
