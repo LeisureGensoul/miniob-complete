@@ -53,6 +53,7 @@ typedef enum
   CHARS,
   INTS,
   DATES,
+  NULLS, 
   FLOATS
 } AttrType;
 
@@ -155,6 +156,7 @@ typedef struct {
   char *name;     // Attribute name
   AttrType type;  // Type of attribute
   size_t length;  // Length of attribute
+  char nullable;  // Nullable
 } AttrInfo;
 
 // struct of craete_table
@@ -269,6 +271,7 @@ void projectcol_destroy(ProjectCol *projectcol);
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
 
+void value_init_null(Value *value);
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);
 void value_init_string(Value *value, const char *v);
@@ -279,7 +282,8 @@ void value_destroy(Value *value);
 //     int right_is_attr, RelAttr *right_attr, Value *right_value);
 // void condition_destroy(Condition *condition);
 
-void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);
+// void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);
+void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, char nullable);
 void attr_info_destroy(AttrInfo *attr_info);
 
 void selects_init(Selects *selects, ...);

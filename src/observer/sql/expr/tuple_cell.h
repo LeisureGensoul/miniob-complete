@@ -36,6 +36,12 @@ public:
   static const TupleCell mul(const TupleCell &left, const TupleCell &right);
   static const TupleCell div(const TupleCell &left, const TupleCell &right);
 
+
+  void set_null()
+  {
+    this->attr_type_ = AttrType::NULLS;
+  }
+
   void set_type(AttrType type) { this->attr_type_ = type; }
   void set_length(int length) { this->length_ = length; }
   void set_data(char *data) { this->data_ = data; }
@@ -55,6 +61,12 @@ public:
   AttrType attr_type() const
   {
     return attr_type_;
+  }
+
+    
+  bool is_null() const
+  {
+    return AttrType::NULLS == attr_type_;
   }
 
 private:
