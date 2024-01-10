@@ -532,9 +532,13 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
   // for (const Field &field : select_stmt->query_fields()) {
   //   project_oper.add_projection(field.table(), field.meta());
   // }
-  auto &field = select_stmt->query_fields();
-  for (auto it = field.begin(); it != field.end(); it++) {
-    project_oper.add_projection(it->table(), it->meta(), is_single_table);
+  // auto &field = select_stmt->query_fields();
+  // for (auto it = field.begin(); it != field.end(); it++) {
+  //   project_oper.add_projection(it->table(), it->meta(), is_single_table);
+  // }
+  auto &projects = select_stmt->projects();
+  for (auto it = projects.begin(); it != projects.end(); it++) {
+    project_oper.add_projection(*it, is_single_table);
   }
   rc = project_oper.open();
   if (rc != RC::SUCCESS) {

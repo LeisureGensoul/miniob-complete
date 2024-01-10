@@ -30,6 +30,12 @@ public:
     : attr_type_(attr_type), data_(data)
   {}
 
+
+  static const TupleCell add(const TupleCell &left, const TupleCell &right);
+  static const TupleCell sub(const TupleCell &left, const TupleCell &right);
+  static const TupleCell mul(const TupleCell &left, const TupleCell &right);
+  static const TupleCell div(const TupleCell &left, const TupleCell &right);
+
   void set_type(AttrType type) { this->attr_type_ = type; }
   void set_length(int length) { this->length_ = length; }
   void set_data(char *data) { this->data_ = data; }

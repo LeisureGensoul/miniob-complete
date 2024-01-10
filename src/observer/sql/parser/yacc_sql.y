@@ -110,6 +110,10 @@ ParserContext *get_context(yyscan_t scanner)
 		NOT
         LIKE
 		UNIQUE
+		ADD
+        SUB
+        MUL
+        DIV
         EQ
         LT
         GT
@@ -121,6 +125,10 @@ ParserContext *get_context(yyscan_t scanner)
   struct _Attr *attr;
   struct _Condition *condition1;
   struct _Value *value1;
+  struct _UnaryExpr* uexp1;
+  struct _Expr* exp1;
+  struct _Expr* exp2;
+  struct _Expr* exp3;
   char *string;
   int number;
   float floats;
@@ -141,6 +149,9 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
+%type <exp1> unary_expr;
+%type <exp2> mul_expr;
+%type <exp3> add_expr;
 
 %%
 
@@ -335,12 +346,116 @@ value_list:
   		// CONTEXT->values[CONTEXT->value_length++] = *$2;
 	  }
     ;
+
+mul_expr:
+    unary_expr {
+    	$$ = $1;
+    }
+	| SUB unary_expr {
+      Value * tmp_val = malloc(sizeof(Value));
+      value_init_integer(tmp_val, -1);
+      UnaryExpr * tmp_uexpr = malloc(sizeof(UnaryExpr));
+      unary_expr_init_value(tmp_uexpr, tmp_val);
+      Expr * tmp_expr = malloc(sizeof(Expr));
+      expr_init_unary(tmp_expr, tmp_uexpr);
+
+      Expr * expr = malloc(sizeof(Expr));
+      BinaryExpr * b_expr = malloc(sizeof(BinaryExpr));
+      binary_expr_init(b_expr, MUL_OP, tmp_expr, $2);
+      binary_expr_set_minus(b_expr);
+      expr_init_binary(expr, b_expr);
+      $$ = expr;
+    }
+    | mul_expr STAR unary_expr {
+      Expr * expr = malloc(sizeof(Expr));
+	  BinaryExpr * b_expr = malloc(sizeof(BinaryExpr));
+      binary_expr_init(b_expr, MUL_OP, $1, $3);
+      expr_init_binary(expr, b_expr);
+      $$ = expr;
+    }
+    | mul_expr DIV unary_expr {
+	  Expr * expr = malloc(sizeof(Expr));
+      BinaryExpr * b_expr = malloc(sizeof(BinaryExpr));
+      binary_expr_init(b_expr, DIV_OP, $1, $3);
+      expr_init_binary(expr, b_expr);
+      $$ = expr;
+    }
+	;
+
+add_expr:
+    mul_expr { $$ = $1; }
+    | add_expr ADD mul_expr {
+	  Expr * expr = malloc(sizeof(Expr));
+      BinaryExpr * b_expr = malloc(sizeof(BinaryExpr));
+      binary_expr_init(b_expr, ADD_OP, $1, $3);
+      expr_init_binary(expr, b_expr);
+      $$ = expr;
+    }
+    | add_expr SUB mul_expr {
+	  Expr * expr = malloc(sizeof(Expr));
+      BinaryExpr * b_expr = malloc(sizeof(BinaryExpr));
+      binary_expr_init(b_expr, SUB_OP, $1, $3);
+      expr_init_binary(expr, b_expr);
+      $$ = expr;
+    }
+	;
+
+// rel_expr:
+//     add_expr comOp add_expr
+
+condition:
+    add_expr comOp add_expr{
+	  Condition expr;
+      condition_init(&expr, CONTEXT->comp, $1, $3);
+      condition_print(&expr, 0);
+	  CONTEXT->conditions[CONTEXT->condition_length++] = expr;
+	}
+	;
+
+unary_expr:
+    value {
+	  Expr *expr = malloc(sizeof(Expr));
+      UnaryExpr* u_expr = malloc(sizeof(UnaryExpr));
+      unary_expr_init_value(u_expr, &CONTEXT->values[CONTEXT->value_length-1]);
+      expr_init_unary(expr, u_expr);
+      $$ = expr;
+    }
+    | ID {
+	  Expr *expr = malloc(sizeof(Expr));
+      RelAttr attr;
+      relation_attr_init(&attr, NULL, $1);
+      UnaryExpr* u_expr = malloc(sizeof(UnaryExpr));
+      unary_expr_init_attr(u_expr, &attr);
+      expr_init_unary(expr, u_expr);
+      $$ = expr;
+    }
+    | ID DOT ID {
+	  Expr *expr = malloc(sizeof(Expr));
+      RelAttr attr;
+      relation_attr_init(&attr, $1, $3);
+      UnaryExpr* u_expr = malloc(sizeof(UnaryExpr));
+      unary_expr_init_attr(u_expr, &attr);
+      expr_init_unary(expr, u_expr);
+      $$ = expr;
+    }
+	| LBRACE add_expr RBRACE {
+      expr_set_with_brace($2);
+      $$ = $2;
+    }
+    ;
+
 value:
     NUMBER{	
   		value_init_integer(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
+	|SUB NUMBER{	
+  		value_init_integer(&CONTEXT->values[CONTEXT->value_length++], -($2));
+		}
     |FLOAT{
   		value_init_float(&CONTEXT->values[CONTEXT->value_length++], $1);
+		}
+	|SUB FLOAT{
+  		value_init_float(&CONTEXT->values[CONTEXT->value_length++], -($2));
 		}
     |SSS {
 			$1 = substr($1,1,strlen($1)-2);
@@ -399,49 +514,43 @@ select:				/*  select 语句的语法解析树*/
 
 select_attr:
     STAR attr_list {  
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, "*");
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	  ProjectCol project_col;
+			projectcol_init_star(&project_col, NULL);
+			selects_append_projects(&CONTEXT->ssql->sstr.selection, &project_col);
 		}
-    | ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, $1);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-		}
-  	| ID DOT ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $1, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-		}
-	| ID DOT STAR attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $1, "*");
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-		}
+    |
+    ID DOT STAR attr_list{
+      ProjectCol project_col;
+			projectcol_init_star(&project_col, $1);
+			selects_append_projects(&CONTEXT->ssql->sstr.selection, &project_col);
+    }
+    |
+    add_expr attr_list{
+      ProjectCol project_col;
+      projectcol_init_expr(&project_col, $1);
+      selects_append_projects(&CONTEXT->ssql->sstr.selection, &project_col);
+    }
     ;
 attr_list:
     /* empty */
-    | COMMA ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, $2);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-     	  // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].relation_name = NULL;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
-      }
-    | COMMA ID DOT ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $2, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
-		// CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
-  	  }
-	| COMMA ID DOT STAR attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $2, "*");
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
-  	  }
+    |
+    COMMA STAR attr_list {  
+			ProjectCol project_col;
+			projectcol_init_star(&project_col, NULL);
+			selects_append_projects(&CONTEXT->ssql->sstr.selection, &project_col);
+		}
+    |
+    COMMA ID DOT STAR attr_list{
+      ProjectCol project_col;
+			projectcol_init_star(&project_col, $2);
+			selects_append_projects(&CONTEXT->ssql->sstr.selection, &project_col);
+    }
+    |
+    COMMA add_expr attr_list{
+      ProjectCol project_col;
+      projectcol_init_expr(&project_col, $2);
+      selects_append_projects(&CONTEXT->ssql->sstr.selection, &project_col);
+    }
   	;
 
 rel_list:
@@ -462,6 +571,7 @@ condition_list:
 				// CONTEXT->conditions[CONTEXT->condition_length++]=*$2;
 			}
     ;
+/*
 condition:
     ID comOp value 
 		{
@@ -608,6 +718,7 @@ condition:
 			// $$->right_attr.attribute_name=$7;
     }
     ;
+*/
 
 comOp:
   	  EQ { CONTEXT->comp = EQUAL_TO; }
