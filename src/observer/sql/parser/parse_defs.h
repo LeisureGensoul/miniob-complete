@@ -114,6 +114,13 @@ typedef struct _ProjectCol {
 //   Value right_value;   // right-hand side value if right_is_attr = FALSE
 // } Condition;
 
+
+typedef struct _OrderBy {
+  RelAttr sort_attr;  // order by attribute
+  int is_asc;         // sort type:asc or desc ,asc is true, desc is false
+} OrderBy;
+
+
 // struct of select
 typedef struct {
   size_t attr_num;                // Length of attrs in Select clause
@@ -124,6 +131,8 @@ typedef struct {
   Condition conditions[MAX_NUM];  // conditions in Where clause
   size_t project_num;             // Length of select clauses
   ProjectCol projects[MAX_NUM];   // project_col in select clause
+  size_t orderby_num;             // Length of orderby
+  OrderBy orderbys[MAX_NUM];      // order by
 } Selects;
 
 // struct of insert
@@ -280,6 +289,10 @@ void value_init_string(Value *value, const char *v);
 int value_init_date(Value *value, const char *year, const char *month, const char *day);
 void value_destroy(Value *value);
 
+
+void orderby_init(OrderBy *orderby, int is_asc, RelAttr *attr);
+void orderby_destroy(OrderBy *orderby);
+
 // void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
 //     int right_is_attr, RelAttr *right_attr, Value *right_value);
 // void condition_destroy(Condition *condition);
@@ -293,6 +306,7 @@ void selects_append_projects(Selects *selects, ProjectCol *project_col);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
+void selects_append_orderbys(Selects *selects, OrderBy orderbys[], size_t orderby_num);
 void selects_destroy(Selects *selects);
 
 // void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);

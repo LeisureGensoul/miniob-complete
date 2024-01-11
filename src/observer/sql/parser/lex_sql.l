@@ -46,6 +46,7 @@ DOUBLE_QUOTE     \"
 [Ee][Xx][Ii][Tt]                                     RETURN_TOKEN(EXIT);
 [Hh][Ee][Ll][Pp]                                     RETURN_TOKEN(HELP);
 [Dd][Ee][Ss][Cc]                                     RETURN_TOKEN(DESC);
+[Aa][Ss][Cc]                                         RETURN_TOKEN(ASC);
 [Cc][Rr][Ee][Aa][Tt][Ee]                             RETURN_TOKEN(CREATE);
 [Dd][Rr][Oo][Pp]                                     RETURN_TOKEN(DROP);
 [Tt][Aa][Bb][Ll][Ee]                                 RETURN_TOKEN(TABLE);
@@ -80,6 +81,8 @@ DOUBLE_QUOTE     \"
 [Ii][Ss]                                             RETURN_TOKEN(IS);
 [Nn][Uu][Ll][Ll]                                     RETURN_TOKEN(NULL_VALUE);
 [Nn][Uu][Ll][Ll][Aa][Bb][Ll][Ee]                     RETURN_TOKEN(NULLABLE);
+[Oo][Rr][Dd][Ee][Rr]                                 RETURN_TOKEN(ORDER);
+[Bb][Yy]                                             RETURN_TOKEN(BY);
 {ID}                                                 yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("                                                  RETURN_TOKEN(LBRACE);
 ")"                                                  RETURN_TOKEN(RBRACE);
