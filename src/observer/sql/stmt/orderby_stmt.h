@@ -58,8 +58,15 @@ public:
   }
 
 public:
+// the func used for creating orderby_stmt for groupby
+  static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+      const GroupBy *groupbys, int groupby_num, OrderByStmt *&stmt);
+
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const OrderBy *orderbys, int orderby_num, OrderByStmt *&stmt);
+
+  static RC create_orderby_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+      const GroupBy &groupby, OrderByUnit *&orderby_unit);
 
   static RC create_orderby_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const OrderBy &orderby, OrderByUnit *&orderby_unit);

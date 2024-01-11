@@ -140,6 +140,7 @@ typedef struct _OrderBy {
   int is_asc;         // sort type:asc or desc ,asc is true, desc is false
 } OrderBy;
 
+  typedef RelAttr GroupBy;
 
 // struct of select
 typedef struct {
@@ -153,6 +154,8 @@ typedef struct {
   ProjectCol projects[MAX_NUM];   // project_col in select clause
   size_t orderby_num;             // Length of orderby
   OrderBy orderbys[MAX_NUM];      // order by
+  size_t groupby_num;             // Length of groupby
+  GroupBy groupbys[MAX_NUM];      // group by
 } Selects;
 
 // struct of insert
@@ -337,6 +340,7 @@ void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_append_orderbys(Selects *selects, OrderBy orderbys[], size_t orderby_num);
+void selects_append_groupbys(Selects *selects, GroupBy groupbys[], size_t groupby_num);
 void selects_destroy(Selects *selects);
 
 // void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);

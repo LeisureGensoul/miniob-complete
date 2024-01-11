@@ -31,6 +31,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/session_event.h"
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
+#include "sql/operator/groupby_operator.h"
 #include "sql/operator/operator.h"
 #include "sql/operator/table_scan_operator.h"
 #include "sql/operator/index_scan_operator.h"
@@ -41,6 +42,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/project_operator.h"
 #include "sql/operator/join_operator.h"
 #include "sql/operator/sort_operator.h"
+#include "sql/stmt/groupby_stmt.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/update_stmt.h"
@@ -534,13 +536,13 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
   pred_oper.add_child(top_op);
   top_op = &pred_oper;
 
-  // 2. process aggrfunc fileds
-  // 2.1 gen sort oper for groupby - Todo
-  // SortOperator sort_oper_for_groupby(select_stmt->orderby_stmt_for_groupby());
-  // if (nullptr != select_stmt->orderby_stmt_for_groupby()) {
-  //   sort_oper_for_groupby.add_child(top_op);
-  //   top_op = &sort_oper_for_groupby;
-  // }
+  // 2. process groupby clause and aggrfunc fileds
+  // 2.1 gen sort oper for groupby
+  SortOperator sort_oper_for_groupby(select_stmt->orderby_stmt_for_groupby());
+  if (nullptr != select_stmt->orderby_stmt_for_groupby()) {
+    sort_oper_for_groupby.add_child(top_op);
+    top_op = &sort_oper_for_groupby;
+  }
 
   // 2.2 get aggrfunc_exprs from projects
   std::vector<AggrFuncExpression *> aggr_exprs;
@@ -555,27 +557,43 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
   }
 
   // 2.4 do check (we should do this check earlier actually)
-  // GroupByStmt *groupby_stmt = select_stmt->groupby_stmt();
-  // if (!aggr_exprs.empty() && !field_exprs.empty()) {
-  //   if (nullptr == groupby_stmt) {
-  //     return RC::SQL_SYNTAX;
-  //   }
-  //   for (auto field_expr : field_exprs) {
-  //     bool in_groupby = false;
-  //     for (auto groupby_unit : groupby_stmt->groupby_units()) {
-  //       if (field_expr->in_expression(groupby_unit->expr())) {
-  //         in_groupby = true;
-  //         break;
-  //       }
-  //     }
-  //     if (!in_groupby) {
-  //       return RC::SQL_SYNTAX;
-  //     }
-  //   }
-  // }
+  GroupByStmt *groupby_stmt = select_stmt->groupby_stmt();
+  if (!aggr_exprs.empty() && !field_exprs.empty()) {
+    if (nullptr == groupby_stmt) {
+      session_event->set_response("FAILURE\n");
+      return RC::SQL_SYNTAX;
+    }
+    for (auto field_expr : field_exprs) {
+      bool in_groupby = false;
+      for (auto groupby_unit : groupby_stmt->groupby_units()) {
+        if (field_expr->in_expression(groupby_unit->expr())) {
+          in_groupby = true;
+          break;
+        }
+      }
+      if (!in_groupby) {
+        session_event->set_response("FAILURE\n");
+        return RC::SQL_SYNTAX;
+      }
+    }
+  }
 
   // 2.5 gen groupby oper
-
+  GroupByStmt *empty_groupby_stmt = nullptr;  // new a empty groupby stmt for no groupby fields
+  DEFER([&]() {
+    if (nullptr != empty_groupby_stmt) {
+      delete empty_groupby_stmt;
+    }
+  });
+  GroupByOperator group_oper(groupby_stmt, aggr_exprs, field_exprs);
+  if (0 != aggr_exprs.size()) {
+    if (nullptr == select_stmt->groupby_stmt()) {
+      empty_groupby_stmt = new GroupByStmt();
+      group_oper.set_groupby_stmt(empty_groupby_stmt);
+    }
+    group_oper.add_child(top_op);
+    top_op = &group_oper;
+  }
   // TODO having
 
   // 3. process orderby clause
