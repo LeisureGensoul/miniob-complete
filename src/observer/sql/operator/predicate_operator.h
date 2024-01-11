@@ -46,3 +46,5 @@ private:
 private:
   FilterStmt *filter_stmt_ = nullptr;
 };
+
+typedef PredicateOperator HavingOperator;
