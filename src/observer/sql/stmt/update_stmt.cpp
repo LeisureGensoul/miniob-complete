@@ -72,8 +72,8 @@ RC UpdateStmt::create(Db *db, const Updates &update, Stmt *&stmt)
     const AttrType field_type = field_meta->type();
     const AttrType value_type = value.type;
     // if (field_type != value_type) {  // TODO 尝试将值的类型转换为属性类型
+    
     // check null first
-
     if (AttrType::NULLS == value_type) {
       if (!field_meta->nullable()) {
         LOG_WARN("field type mismatch. can not be null. table=%s, field=%s, field type=%d, value_type=%d",
