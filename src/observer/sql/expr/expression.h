@@ -18,12 +18,17 @@ See the Mulan PSL v2 for more details. */
 #include <ostream>
 #include <string.h>
 #include <unordered_map>
+#include <vector>
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
 #include "storage/common/field.h"
 #include "sql/expr/tuple_cell.h"
+#include "storage/common/db.h"
 
 class Tuple;
+class SelectStmt;
+class ProjectOperator;
+class Stmt;
 
 enum class ExprType {
   NONE,
@@ -31,6 +36,8 @@ enum class ExprType {
   VALUE,
   BINARY,
   AGGRFUNCTION,
+  SUBQUERYTYPE,
+  SUBLISTTYPE,
 };
 
 class Expression
@@ -45,7 +52,7 @@ public:
 
 
   static RC create_expression(const Expr *expr, const std::unordered_map<std::string, Table *> &table_map,
-      const std::vector<Table *> &tables, Expression *&res_expr);
+      const std::vector<Table *> &tables, Expression *&res_expr, CompOp comp = NO_OP, Db *db = nullptr);
 
   void set_with_brace()
   {
@@ -122,6 +129,10 @@ public:
 
   static void get_fieldexprs_without_aggrfunc(const Expression *expr, std::vector<FieldExpr *> &field_exprs);
 
+
+  static RC create_expression(const Expr *expr, const std::unordered_map<std::string, Table *> &table_map,
+      const std::vector<Table *> &tables, Expression *&res_expr, CompOp comp = NO_OP, Db *db = nullptr);
+
 private:
   Field field_;
 };
@@ -159,6 +170,11 @@ public:
 
   
   void to_string(std::ostream &os) const override;
+
+
+static RC create_expression(const Expr *expr, const std::unordered_map<std::string, Table *> &table_map,
+      const std::vector<Table *> &tables, Expression *&res_expr, CompOp comp = NO_OP, Db *db = nullptr);
+
 
 private:
   TupleCell tuple_cell_;
@@ -286,6 +302,10 @@ public:
   
   void to_string(std::ostream &os) const override;
 
+
+  static RC create_expression(const Expr *expr, const std::unordered_map<std::string, Table *> &table_map,
+      const std::vector<Table *> &tables, Expression *&res_expr, CompOp comp = NO_OP, Db *db = nullptr);
+
 private:
   // ExpOp op_ = NO_EXP_OP;
   ExpOp op_;
@@ -388,9 +408,104 @@ public:
 
   static void get_aggrfuncexprs(const Expression *expr, std::vector<AggrFuncExpression *> &aggrfunc_exprs);
 
+
+  static RC create_expression(const Expr *expr, const std::unordered_map<std::string, Table *> &table_map,
+      const std::vector<Table *> &tables, Expression *&res_expr, CompOp comp = NO_OP, Db *db = nullptr);
+
+
 private:
   AggrFuncType type_;
   // Field field_;
   const FieldExpr *field_ = nullptr;  // don't own this. keep const.
   const ValueExpr *value_ = nullptr;  // for count(1) count(*) count("xxx") output
+};
+
+class SubQueryExpression : public Expression {
+public:
+  SubQueryExpression() = default;
+  virtual ~SubQueryExpression() = default;
+
+  ExprType type() const override
+  {
+    return ExprType::SUBQUERYTYPE;
+  }
+
+  void to_string(std::ostream &os) const override
+  {}
+
+  RC get_value(const Tuple &tuple, TupleCell &final_cell) const override;
+
+  void set_sub_query_stmt(SelectStmt *sub_stmt)
+  {
+    sub_stmt_ = sub_stmt;
+  }
+
+  SelectStmt *get_sub_query_stmt() const
+  {
+    return sub_stmt_;
+  }
+
+  void set_sub_query_top_oper(ProjectOperator *oper)
+  {
+    sub_top_oper_ = oper;
+  }
+
+  ProjectOperator *get_sub_query_top_oper() const
+  {
+    return sub_top_oper_;
+  }
+
+  RC open_sub_query() const;
+  RC close_sub_query() const;
+
+  static RC create_expression(const Expr *expr, const std::unordered_map<std::string, Table *> &table_map,
+      const std::vector<Table *> &tables, Expression *&res_expr, CompOp comp = NO_OP, Db *db = nullptr);
+
+private:
+  SelectStmt *sub_stmt_ = nullptr;
+  ProjectOperator *sub_top_oper_ = nullptr;
+};
+
+class ListExpression : public Expression {
+public:
+  ListExpression() = default;
+
+  virtual ~ListExpression() = default;
+
+  RC get_value(const Tuple &tuple, TupleCell &cell) const override
+  {
+    return RC::UNIMPLENMENT;
+  }
+
+  ExprType type() const override
+  {
+    return ExprType::SUBLISTTYPE;
+  }
+
+  void set_tuple_cells(Value values[], int value_length)
+  {
+    TupleCell tuple_cell;
+    for (int i = 0; i < value_length; i++) {
+      tuple_cell.set_type(values[i].type);
+      tuple_cell.set_length(-1);
+      tuple_cell.set_data((char *)values[i].data);  // maybe null
+      if (values[i].type == CHARS) {
+        tuple_cell.set_length(strlen((const char *)values[i].data));
+      }
+      tuple_cells_.emplace_back(tuple_cell);
+    }
+  }
+
+  const std::vector<TupleCell> get_tuple_cells() const
+  {
+    return tuple_cells_;
+  }
+
+  void to_string(std::ostream &os) const override{};
+
+  static RC create_expression(const Expr *expr, const std::unordered_map<std::string, Table *> &table_map,
+      const std::vector<Table *> &tables, Expression *&res_expr, CompOp comp = NO_OP, Db *db = nullptr);
+
+private:
+  std::vector<TupleCell> tuple_cells_;
 };

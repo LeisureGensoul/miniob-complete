@@ -76,52 +76,54 @@ extern int yydebug;
     ORDER = 282,
     GROUP = 283,
     BY = 284,
-    HAVING = 285,
-    AGGR_MAX = 286,
-    AGGR_MIN = 287,
-    AGGR_SUM = 288,
-    AGGR_AVG = 289,
-    AGGR_COUNT = 290,
-    HELP = 291,
-    EXIT = 292,
-    DOT = 293,
-    INTO = 294,
-    VALUES = 295,
-    FROM = 296,
-    WHERE = 297,
-    AND = 298,
-    SET = 299,
-    ON = 300,
-    LOAD = 301,
-    DATA = 302,
-    INFILE = 303,
-    NOT = 304,
-    LIKE = 305,
-    UNIQUE = 306,
-    ADD = 307,
-    SUB = 308,
-    MUL = 309,
-    DIV = 310,
-    IS = 311,
-    NULL_VALUE = 312,
-    NULLABLE = 313,
-    EQ = 314,
-    LT = 315,
-    GT = 316,
-    LE = 317,
-    GE = 318,
-    NE = 319,
-    LENGTH = 320,
-    ROUND = 321,
-    DATE_FORMAT = 322,
-    NUMBER = 323,
-    FLOAT = 324,
-    ID = 325,
-    PATH = 326,
-    SSS = 327,
-    STAR = 328,
-    STRING_V = 329,
-    DATE_STR = 330
+    IN = 285,
+    EXISTS = 286,
+    HAVING = 287,
+    AGGR_MAX = 288,
+    AGGR_MIN = 289,
+    AGGR_SUM = 290,
+    AGGR_AVG = 291,
+    AGGR_COUNT = 292,
+    HELP = 293,
+    EXIT = 294,
+    DOT = 295,
+    INTO = 296,
+    VALUES = 297,
+    FROM = 298,
+    WHERE = 299,
+    AND = 300,
+    SET = 301,
+    ON = 302,
+    LOAD = 303,
+    DATA = 304,
+    INFILE = 305,
+    NOT = 306,
+    LIKE = 307,
+    UNIQUE = 308,
+    ADD = 309,
+    SUB = 310,
+    MUL = 311,
+    DIV = 312,
+    IS = 313,
+    NULL_VALUE = 314,
+    NULLABLE = 315,
+    EQ = 316,
+    LT = 317,
+    GT = 318,
+    LE = 319,
+    GE = 320,
+    NE = 321,
+    LENGTH = 322,
+    ROUND = 323,
+    DATE_FORMAT = 324,
+    NUMBER = 325,
+    FLOAT = 326,
+    ID = 327,
+    PATH = 328,
+    SSS = 329,
+    STAR = 330,
+    STRING_V = 331,
+    DATE_STR = 332
   };
 #endif
 
@@ -129,11 +131,10 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 155 "yacc_sql.y"
+#line 166 "yacc_sql.y"
 
   struct _Attr *attr;
   struct _Condition *condition1;
-  struct _Condition *having1;
   struct _Value *value1;
   struct _UnaryExpr* uexp1;
   struct _Expr* exp1;
@@ -141,12 +142,17 @@ union YYSTYPE
   struct _Expr* exp3;
   struct _Expr* exp4;
   struct _Expr* exp5;
+  struct _Expr* exp6;
+  struct _Expr* exp7;
+  struct _FromInfo* from_info;
   char *string;
   int number;
   float floats;
 	char *position;
+  int cur_len;
+  int comp_op;
 
-#line 150 "yacc_sql.tab.h"
+#line 156 "yacc_sql.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

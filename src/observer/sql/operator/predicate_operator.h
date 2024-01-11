@@ -41,7 +41,9 @@ public:
 private:
   // bool do_predicate(RowTuple &tuple);
   // RC do_cast(TupleCell &left_cell, TupleCell &right_cell, int &tmp_int, float &tmp_float);
-  bool do_predicate(Tuple &tuple);
+  // bool do_predicate(Tuple &tuple);
+  RC do_predicate(Tuple &tuple, bool &res);
+
 
 private:
   FilterStmt *filter_stmt_ = nullptr;

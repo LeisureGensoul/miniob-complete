@@ -23,6 +23,9 @@ RC JoinOperator::open()
   return rc;
 }
 
+
+//void JoinOperator::filter_right_table()
+
 RC JoinOperator::fetch_right_table()
 {
   // 初始化返回码
