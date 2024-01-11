@@ -71,22 +71,22 @@ RC UpdateStmt::create(Db *db, const Updates &update, Stmt *&stmt)
     field_exist = true;
     const AttrType field_type = field_meta->type();
     const AttrType value_type = value.type;
-    // if (field_type != value_type) {  // TODO 尝试将值的类型转换为属性类型
+    if (field_type != value_type) {  // TODO 尝试将值的类型转换为属性类型
     
-    // check null first
-    if (AttrType::NULLS == value_type) {
-      if (!field_meta->nullable()) {
-        LOG_WARN("field type mismatch. can not be null. table=%s, field=%s, field type=%d, value_type=%d",
-            table_name,
-            field_meta->name(),
-            field_type,
-            value_type);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      }
-      break;  // pass check
-    }
-    // check typecast
-    if (field_type != value_type && type_cast_not_support(value_type, field_type)) {
+    // // check null first
+    // if (AttrType::NULLS == value_type) {
+    //   if (!field_meta->nullable()) {
+    //     LOG_WARN("field type mismatch. can not be null. table=%s, field=%s, field type=%d, value_type=%d",
+    //         table_name,
+    //         field_meta->name(),
+    //         field_type,
+    //         value_type);
+    //     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    //   }
+    //   break;  // pass check
+    // }
+    // // check typecast
+    // if (field_type != value_type && type_cast_not_support(value_type, field_type)) {
       LOG_WARN("字段类型不匹配。表=%s, 字段=%s, 字段类型=%d, 值类型=%d",
           table_name,
           field_meta->name(),
