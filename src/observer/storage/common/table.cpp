@@ -447,6 +447,74 @@ const TableMeta &Table::table_meta() const
   return table_meta_;
 }
 
+
+bool Table::record_field_is_null(const char *record, int idx) const
+{
+  const FieldMeta *field = table_meta_.field(idx);
+  if (!field->nullable()) {
+    return false;
+  }
+  const FieldMeta *null_field = table_meta_.null_bitmap_field();
+  common::Bitmap bitmap(const_cast<char *>(record) + null_field->offset(), null_field->len());
+  return bitmap.get_bit(idx);
+}
+
+RC Table::change_record_value(char *&record, int idx, const Value &value) const
+{
+  const FieldMeta *null_field = table_meta_.null_bitmap_field();
+  common::Bitmap bitmap(record + null_field->offset(), null_field->len());
+
+  const FieldMeta *field = table_meta_.field(idx);
+  // do check null again
+  if (AttrType::NULLS == value.type) {
+    if (!field->nullable()) {
+      LOG_ERROR("Invalid value type. Cannot be null. table name =%s, field name=%s, type=%d, but given=%d",
+          table_meta_.name(),
+          field->name(),
+          field->type(),
+          value.type);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    bitmap.set_bit(idx);
+    assert(nullptr == value.data);
+    // make sure data all zero bit
+    memset(record + field->offset(), 0, field->len());
+    return RC::SUCCESS;
+  }
+
+  // do typecast
+  void *tmp_data = nullptr;
+  if (field->type() != value.type) {
+    tmp_data = cast_to[value.type][field->type()](value.data);
+    if (nullptr == tmp_data) {
+      LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
+          table_meta_.name(),
+          field->name(),
+          field->type(),
+          value.type);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+  } else {
+    tmp_data = value.data;
+  }
+
+  size_t copy_len = field->len();
+  if (field->type() == CHARS) {
+    const size_t data_len = strlen((const char *)tmp_data);
+    if (copy_len > data_len) {
+      copy_len = data_len + 1;
+    }
+  }
+  memcpy(record + field->offset(), tmp_data, copy_len);
+
+  // need to release memory
+  if (field->type() != value.type) {
+    assert(nullptr != tmp_data);
+    free(tmp_data);
+  }
+  return RC::SUCCESS;
+}
+
 RC Table::make_record(int value_num, const Value *values, char *&record_out)
 {
   // 检查字段类型是否一致
@@ -460,98 +528,20 @@ RC Table::make_record(int value_num, const Value *values, char *&record_out)
   DEFER([&]() { delete[] casted_values; });
 
   const int normal_field_start_index = table_meta_.sys_field_num();
-  // for (int i = 0; i < value_num; i++) {
-  //   const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
-  //   const Value &value = values[i];
-  //   if (AttrType::NULLS == value.type) {
-  //     if (!field->nullable()) {
-  //       LOG_ERROR("Invalid value type. Cannot be null. table name =%s, field name=%s, type=%d, but given=%d",
-  //           table_meta_.name(),
-  //           field->name(),
-  //           field->type(),
-  //           value.type);
-  //       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-  //     }
-  //     continue;
-  //   }
-  //   if (field->type() != value.type) {
-  //     LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
-  //         table_meta_.name(),
-  //         field->name(),
-  //         field->type(),
-  //         value.type);
-  //     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-  //   }
-  // }
 
   // 复制所有字段的值
   int record_size = table_meta_.record_size();
   char *record = new char[record_size];
   memset(record, 0, record_size);
 
-  const FieldMeta *null_field = table_meta_.null_bitmap_field();
-  common::Bitmap bitmap(record + null_field->offset(), null_field->len());
-
+  // const FieldMeta *null_field = table_meta_.null_bitmap_field();
+  // common::Bitmap bitmap(record + null_field->offset(), null_field->len());
+  RC rc = RC::SUCCESS;
   for (int i = 0; i < value_num; i++) {
-    const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
-    const Value &value = values[i];
-    if (AttrType::NULLS == value.type) {
-      if (!field->nullable()) {
-        LOG_ERROR("Invalid value type. Cannot be null. table name =%s, field name=%s, type=%d, but given=%d",
-            table_meta_.name(),
-            field->name(),
-            field->type(),
-            value.type);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      }
-      bitmap.set_bit(i + normal_field_start_index);
-      assert(nullptr == value.data);
-      // keep data all zero bit. no need to memcpy
-      continue;
-    }
-    
-    void *tmp_data = nullptr;
-
-    if (field->type() != value.type) {
-      tmp_data = cast_to[value.type][field->type()](value.data);
-      if (nullptr == tmp_data) {
-        LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
-            table_meta_.name(),
-            field->name(),
-            field->type(),
-            value.type);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      }
-    } else {
-
-      tmp_data = value.data;
-    }
-    size_t copy_len = field->len();
-    if (field->type() == CHARS) {
-      // const size_t data_len = strlen((const char *)value.data);
-      const size_t data_len = strlen((const char *)tmp_data);
-      if (copy_len > data_len) {
-        copy_len = data_len + 1;
-      }
-    }
-    // memcpy(record + field->offset(), value.data, copy_len);
-    memcpy(record + field->offset(), tmp_data, copy_len);
-    if (field->type() != value.type) {
-      assert(nullptr != tmp_data);
-      switch (field->type()) {
-        case CHARS:
-          delete (char *)tmp_data;
-          break;
-        case INTS:
-          delete (int *)tmp_data;
-          break;
-        case FLOATS:
-          delete (float *)tmp_data;
-          break;
-        default:
-          LOG_ERROR("WON'T BE HERE");
-          break;
-      }
+    rc = change_record_value(record, i + normal_field_start_index, values[i]);
+    if (RC::SUCCESS != rc) {
+      LOG_ERROR("Change Record Value Failed. RC = %d", rc);
+      return rc;
     }
   }
 
@@ -844,10 +834,18 @@ RC Table::update_record(Trx *trx, const char *attr_name, Record *record, Value *
   bool is_index = false;
   int field_offset = -1;
   int field_length = -1;
-  int record_size = table_meta_.record_size();
-  const int sys_field_num = table_meta_.sys_field_num();
-  const int user_field_num = table_meta_.field_num() - sys_field_num;
+  int field_idx = -1;
+  bool field_nullable = false;
 
+  int record_size = table_meta_.record_size();
+  // const int sys_field_num = table_meta_.sys_field_num();
+  // const int user_field_num = table_meta_.field_num() - sys_field_num;
+
+  const int sys_field_num = table_meta_.sys_field_num();      // ignore __trx column
+  const int extra_filed_num = table_meta_.extra_filed_num();  // ignore __null column
+  const int user_field_num = table_meta_.field_num() - sys_field_num - extra_filed_num;
+
+  // find field info according to field_name. must find.
   // 遍历表的字段，查找匹配的属性名
   for (int i = 0; i < user_field_num; i++) {
     const FieldMeta *field_meta = table_meta_.field(i + sys_field_num);
@@ -859,28 +857,40 @@ RC Table::update_record(Trx *trx, const char *attr_name, Record *record, Value *
     }
 
     // 检查属性类型是否匹配
-    const AttrType field_type = field_meta->type();
-    const AttrType value_type = value->type;
-    if (field_type != value_type) {  // TODO 尝试将值的类型转换为属性类型
-      LOG_WARN("字段类型不匹配。表=%s, 字段=%s, 字段类型=%d, 值类型=%d",
-          name(),
-          field_meta->name(),
-          field_type,
-          value_type);
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-    }
+    // const AttrType field_type = field_meta->type();
+    // const AttrType value_type = value->type;
+    // if (field_type != value_type) {  // TODO 尝试将值的类型转换为属性类型
+    //   LOG_WARN("字段类型不匹配。表=%s, 字段=%s, 字段类型=%d, 值类型=%d",
+    //       name(),
+    //       field_meta->name(),
+    //       field_type,
+    //       value_type);
+    //   return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    // }
 
     // 记录属性的偏移、长度，并检查是否为索引字段
     field_offset = field_meta->offset();
     field_length = field_meta->len();
+    field_idx = i + sys_field_num;
+    field_nullable = field_meta->nullable();
     if (nullptr != find_index_by_field(field_name)) {
       is_index = true;
     }
     break;
   }
 
+  
+  assert(-1 != field_idx);
+
   // 检查新值是否与旧值相同，若相同则返回重复键的错误码
-  if (0 == memcmp(record->data() + field_offset, value->data, field_length)) {
+  // if (0 == memcmp(record->data() + field_offset, value->data, field_length)) {
+  // check duplicate
+  if (field_nullable) {
+    if (record_field_is_null(record->data(), field_idx) && AttrType::NULLS == value->type) {
+      LOG_WARN("duplicate value");
+      return RC::RECORD_DUPLICATE_KEY;
+    }
+  } else if (0 == memcmp(record->data() + field_offset, value->data, field_length)) {
     LOG_WARN("重复的值");
     return RC::RECORD_DUPLICATE_KEY;
   }
@@ -889,7 +899,13 @@ RC Table::update_record(Trx *trx, const char *attr_name, Record *record, Value *
   char *old_data = record->data();
   char *data = new char[record_size];  // 新记录的数据
   memcpy(data, old_data, record_size);
-  memcpy(data + field_offset, value->data, field_length);
+  // memcpy(data + field_offset, value->data, field_length);
+  rc = change_record_value(data, field_idx, *value);
+  assert(RC::SUCCESS == rc);  // do check in resolve stage. so assert success
+  if (RC::SUCCESS != rc) {
+    LOG_ERROR("Change Record Value Failed. RC = %d", rc);
+    return rc;
+  }
   record->set_data(data);
 
   // 为新记录添加索引项

@@ -87,6 +87,7 @@ RC InsertStmt::create(Db *db, const Inserts &inserts, Stmt *&stmt)
       const FieldMeta *field_meta = table_meta.field(j + sys_field_num);
       const AttrType field_type = field_meta->type();
       const AttrType value_type = values[j].type;
+      // check null first
       if (AttrType::NULLS == value_type) {
         if (!field_meta->nullable()) {
           LOG_WARN("field type mismatch. can not be null. table=%s, field=%s, field type=%d, value_type=%d",
@@ -98,14 +99,15 @@ RC InsertStmt::create(Db *db, const Inserts &inserts, Stmt *&stmt)
         }
         continue;
       }
-      // if (field_type != value_type) {  // TODO try to convert the value type to field type
-      //   LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
-      //       table_name,
-      //       field_meta->name(),
-      //       field_type,
-      //       value_type);
-      //   return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      // }
+      // check typecast
+      if (field_type != value_type && type_cast_not_support(value_type, field_type)) {
+        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+            table_name,
+            field_meta->name(),
+            field_type,
+            value_type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
     }
 
     Row row;
