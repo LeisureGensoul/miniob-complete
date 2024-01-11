@@ -128,6 +128,7 @@ public:
 
   static const TupleCell &min(const TupleCell &a, const TupleCell &b)
   {
+    // Fix the null about aggr func
     if (a.is_null()) {
       return b;  // even if b is also null
     }
@@ -136,6 +137,7 @@ public:
 
   static const TupleCell &max(const TupleCell &a, const TupleCell &b)
   {
+    // Fix the null about aggr func
     if (a.is_null()) {
       return b;  // even if b is also null
     }
