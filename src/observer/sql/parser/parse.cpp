@@ -12,7 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi 
 //
 
-#include <mutex>
+// #include <mutex>
 #include "sql/parser/parse.h"
 #include "rc.h"
 #include "common/log/log.h"
@@ -181,10 +181,19 @@ void condition_init(Condition *condition, CompOp op, Expr *left_expr, Expr *righ
 //   expr->is_attr = 1;
 //   expr->attr = *relation_attr;
 // }
+void condition_init_with_null(Condition *condition, CompOp op, Expr *left_expr)
+{
+  condition->comp = op;
+  condition->left = left_expr;
+  condition->right = NULL;
+}
 void condition_destroy(Condition *condition)
 {
   expr_destroy(condition->left);
-  expr_destroy(condition->right);
+  // expr_destroy(condition->right);
+  if (NULL != condition->right) {
+    expr_destroy(condition->right);
+  }
 }
 // void unary_expr_destory(UnaryExpr *expr)
 // {
