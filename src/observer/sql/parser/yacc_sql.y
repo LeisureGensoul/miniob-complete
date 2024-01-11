@@ -18,6 +18,7 @@ typedef struct ParserContext {
   size_t select_length;
   size_t condition_length;
   size_t orderby_length;
+  size_t aggrfunc_length;
   size_t from_length;
   size_t value_length;
   Value values[MAX_NUM];
@@ -25,6 +26,7 @@ typedef struct ParserContext {
   OrderBy orderbys[MAX_NUM];
   CompOp comp;
 	char id[MAX_NUM];
+  AggrFuncType aggrfunctype;
 } ParserContext;
 
 //获取子串
@@ -103,6 +105,11 @@ ParserContext *get_context(yyscan_t scanner)
         FLOAT_T
 		ORDER
 		BY
+		AGGR_MAX
+        AGGR_MIN
+        AGGR_SUM
+        AGGR_AVG
+        AGGR_COUNT
         HELP
         EXIT
         DOT //QUOTE
@@ -132,6 +139,9 @@ ParserContext *get_context(yyscan_t scanner)
         LE
         GE
         NE
+		LENGTH
+        ROUND
+        DATE_FORMAT
 
 %union {
   struct _Attr *attr;
@@ -141,6 +151,8 @@ ParserContext *get_context(yyscan_t scanner)
   struct _Expr* exp1;
   struct _Expr* exp2;
   struct _Expr* exp3;
+  struct _Expr* exp4;
+  struct _Expr* exp5;
   char *string;
   int number;
   float floats;
@@ -164,6 +176,8 @@ ParserContext *get_context(yyscan_t scanner)
 %type <exp1> unary_expr;
 %type <exp2> mul_expr;
 %type <exp3> add_expr;
+%type <exp4> func_expr;
+%type <exp5> aggr_func_expr;
 
 %%
 
@@ -510,6 +524,102 @@ unary_expr:
       expr_set_with_brace($2);
       $$ = $2;
     }
+	| aggr_func_expr {
+      $$ = $1;
+    }
+    ;
+
+aggr_func_type:
+    AGGR_MAX {
+      CONTEXT->aggrfunctype = MAX;
+    }
+    | AGGR_MIN {
+      CONTEXT->aggrfunctype = MIN;
+    }
+    | AGGR_SUM {
+      CONTEXT->aggrfunctype = SUM;
+    }
+    | AGGR_AVG {
+      CONTEXT->aggrfunctype = AVG;
+    }
+    | AGGR_COUNT {
+      CONTEXT->aggrfunctype = COUNT;
+    }
+    ;
+
+aggr_func_expr:
+    aggr_func_type LBRACE add_expr RBRACE
+    {
+      AggrFuncExpr* afexpr = malloc(sizeof(AggrFuncExpr));
+      aggr_func_expr_init(afexpr, CONTEXT->aggrfunctype, $3);
+      Expr* expr = malloc(sizeof(Expr));
+      expr_init_aggr_func(expr, afexpr);
+      $$ = expr;
+    }
+    | aggr_func_type LBRACE STAR RBRACE
+    {
+      if (CONTEXT->aggrfunctype != COUNT) {
+        return -1;
+      }
+      // regard as a string value
+  		value_init_string(&CONTEXT->values[CONTEXT->value_length++], "*");
+
+    	Expr *param = malloc(sizeof(Expr));
+      UnaryExpr* u_expr = malloc(sizeof(UnaryExpr));
+      unary_expr_init_value(u_expr, &CONTEXT->values[CONTEXT->value_length-1]);
+      expr_init_unary(param, u_expr);
+
+      AggrFuncExpr* afexpr = malloc(sizeof(AggrFuncExpr));
+      aggr_func_expr_init(afexpr, COUNT, param);
+      Expr* expr = malloc(sizeof(Expr));
+      expr_init_aggr_func(expr, afexpr);
+      $$ = expr;
+    }
+	| func_expr {
+      $$ = $1;
+    }
+    ;
+
+func_expr:
+    LENGTH LBRACE add_expr RBRACE
+    {
+      FuncExpr* fexpr = malloc(sizeof(FuncExpr));
+      func_expr_init_type(fexpr, 0);
+      func_expr_init_params(fexpr, $3, NULL);
+      Expr* expr = malloc(sizeof(Expr));
+      expr_init_func(expr, fexpr);
+      $$ = expr;
+    }
+    |
+    ROUND LBRACE add_expr RBRACE
+    {
+      FuncExpr* fexpr = malloc(sizeof(FuncExpr));
+      func_expr_init_type(fexpr, 1);
+      func_expr_init_params(fexpr, $3, NULL);
+      Expr* expr = malloc(sizeof(Expr));
+      expr_init_func(expr, fexpr);
+      $$ = expr;
+    }
+    |
+    ROUND LBRACE add_expr COMMA add_expr RBRACE
+    {
+      FuncExpr* fexpr = malloc(sizeof(FuncExpr));
+      func_expr_init_type(fexpr, 1);
+      func_expr_init_params(fexpr, $3, $5);
+      Expr* expr = malloc(sizeof(Expr));
+      expr_init_func(expr, fexpr);
+      $$ = expr;
+    }
+    |
+    DATE_FORMAT LBRACE add_expr COMMA add_expr RBRACE
+    {
+      FuncExpr* fexpr = malloc(sizeof(FuncExpr));
+      func_expr_init_type(fexpr, 2);
+      func_expr_init_params(fexpr, $3, $5);
+      Expr* expr = malloc(sizeof(Expr));
+      expr_init_func(expr, fexpr);
+      $$ = expr;
+    }
     ;
 
 value:
@@ -850,7 +960,7 @@ sort_unit:
 		OrderBy orderby;
 		orderby_init(&orderby, FALSE, &attr);
 		CONTEXT->orderbys[CONTEXT->orderby_length++] = orderby;
-		printf("hhh\n");
+		// printf("hhh\n");
 	}
 	|
 	ID DOT ID ASC
@@ -860,7 +970,7 @@ sort_unit:
 		OrderBy orderby;
 		orderby_init(&orderby, TRUE, &attr);
 		CONTEXT->orderbys[CONTEXT->orderby_length++] = orderby;
-		printf("hhh\n");
+		// printf("hhh\n");
 	}
 	;
 sort_list:

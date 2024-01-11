@@ -75,43 +75,51 @@ extern int yydebug;
     FLOAT_T = 281,
     ORDER = 282,
     BY = 283,
-    HELP = 284,
-    EXIT = 285,
-    DOT = 286,
-    INTO = 287,
-    VALUES = 288,
-    FROM = 289,
-    WHERE = 290,
-    AND = 291,
-    SET = 292,
-    ON = 293,
-    LOAD = 294,
-    DATA = 295,
-    INFILE = 296,
-    NOT = 297,
-    LIKE = 298,
-    UNIQUE = 299,
-    ADD = 300,
-    SUB = 301,
-    MUL = 302,
-    DIV = 303,
-    IS = 304,
-    NULL_VALUE = 305,
-    NULLABLE = 306,
-    EQ = 307,
-    LT = 308,
-    GT = 309,
-    LE = 310,
-    GE = 311,
-    NE = 312,
-    NUMBER = 313,
-    FLOAT = 314,
-    ID = 315,
-    PATH = 316,
-    SSS = 317,
-    STAR = 318,
-    STRING_V = 319,
-    DATE_STR = 320
+    AGGR_MAX = 284,
+    AGGR_MIN = 285,
+    AGGR_SUM = 286,
+    AGGR_AVG = 287,
+    AGGR_COUNT = 288,
+    HELP = 289,
+    EXIT = 290,
+    DOT = 291,
+    INTO = 292,
+    VALUES = 293,
+    FROM = 294,
+    WHERE = 295,
+    AND = 296,
+    SET = 297,
+    ON = 298,
+    LOAD = 299,
+    DATA = 300,
+    INFILE = 301,
+    NOT = 302,
+    LIKE = 303,
+    UNIQUE = 304,
+    ADD = 305,
+    SUB = 306,
+    MUL = 307,
+    DIV = 308,
+    IS = 309,
+    NULL_VALUE = 310,
+    NULLABLE = 311,
+    EQ = 312,
+    LT = 313,
+    GT = 314,
+    LE = 315,
+    GE = 316,
+    NE = 317,
+    LENGTH = 318,
+    ROUND = 319,
+    DATE_FORMAT = 320,
+    NUMBER = 321,
+    FLOAT = 322,
+    ID = 323,
+    PATH = 324,
+    SSS = 325,
+    STAR = 326,
+    STRING_V = 327,
+    DATE_STR = 328
   };
 #endif
 
@@ -119,7 +127,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 136 "yacc_sql.y"
+#line 146 "yacc_sql.y"
 
   struct _Attr *attr;
   struct _Condition *condition1;
@@ -128,12 +136,14 @@ union YYSTYPE
   struct _Expr* exp1;
   struct _Expr* exp2;
   struct _Expr* exp3;
+  struct _Expr* exp4;
+  struct _Expr* exp5;
   char *string;
   int number;
   float floats;
 	char *position;
 
-#line 137 "yacc_sql.tab.h"
+#line 147 "yacc_sql.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

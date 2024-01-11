@@ -14,7 +14,10 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cassert>
+#include <cstring>
 #include <iostream>
+#include "sql/parser/parse_defs.h"
 #include "storage/common/table.h"
 #include "storage/common/field_meta.h"
 
@@ -46,6 +49,30 @@ public:
   void set_length(int length) { this->length_ = length; }
   void set_data(char *data) { this->data_ = data; }
   void set_data(const char *data) { this->set_data(const_cast<char *>(data)); }
+
+  
+  void modify_data(char *data)
+  {
+    if (nullptr == data_) {
+      return;
+    }
+    switch (attr_type_) {
+      case AttrType::DATES:
+      case AttrType::INTS:
+        memcpy(data_, data, sizeof(int));
+        break;
+      case AttrType::FLOATS:
+        memcpy(data_, data, sizeof(float));
+        break;
+      case AttrType::CHARS:
+        // TODO(wbj) note memcpy len
+        memcpy(data_, data, length_);
+        break;
+      default:
+        break;
+    }
+    return;
+  }
 
   void to_string(std::ostream &os) const;
 
@@ -97,6 +124,22 @@ public:
   bool operator>=(const TupleCell &other) const
   {
     return 0 <= compare(other);
+  }
+
+  static const TupleCell &min(const TupleCell &a, const TupleCell &b)
+  {
+    if (a.is_null()) {
+      return b;  // even if b is also null
+    }
+    return a <= b ? a : b;
+  }
+
+  static const TupleCell &max(const TupleCell &a, const TupleCell &b)
+  {
+    if (a.is_null()) {
+      return b;  // even if b is also null
+    }
+    return a >= b ? a : b;
   }
 
 private:

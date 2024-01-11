@@ -528,16 +528,64 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
   });
 
   Operator *top_op = scan_oper;
+
+  // 1. process where clause
   PredicateOperator pred_oper(select_stmt->filter_stmt());
-  // pred_oper.add_child(scan_oper);
   pred_oper.add_child(top_op);
   top_op = &pred_oper;
+
+  // 2. process aggrfunc fileds
+  // 2.1 gen sort oper for groupby - Todo
+  // SortOperator sort_oper_for_groupby(select_stmt->orderby_stmt_for_groupby());
+  // if (nullptr != select_stmt->orderby_stmt_for_groupby()) {
+  //   sort_oper_for_groupby.add_child(top_op);
+  //   top_op = &sort_oper_for_groupby;
+  // }
+
+  // 2.2 get aggrfunc_exprs from projects
+  std::vector<AggrFuncExpression *> aggr_exprs;
+  for (auto project : select_stmt->projects()) {
+    AggrFuncExpression::get_aggrfuncexprs(project, aggr_exprs);
+  }
+  
+  // 2.3 get normal field_exprs from projects
+  std::vector<FieldExpr *> field_exprs;
+  for (auto project : select_stmt->projects()) {
+    FieldExpr::get_fieldexprs_without_aggrfunc(project, field_exprs);
+  }
+
+  // 2.4 do check (we should do this check earlier actually)
+  // GroupByStmt *groupby_stmt = select_stmt->groupby_stmt();
+  // if (!aggr_exprs.empty() && !field_exprs.empty()) {
+  //   if (nullptr == groupby_stmt) {
+  //     return RC::SQL_SYNTAX;
+  //   }
+  //   for (auto field_expr : field_exprs) {
+  //     bool in_groupby = false;
+  //     for (auto groupby_unit : groupby_stmt->groupby_units()) {
+  //       if (field_expr->in_expression(groupby_unit->expr())) {
+  //         in_groupby = true;
+  //         break;
+  //       }
+  //     }
+  //     if (!in_groupby) {
+  //       return RC::SQL_SYNTAX;
+  //     }
+  //   }
+  // }
+
+  // 2.5 gen groupby oper
+
+  // TODO having
+
+  // 3. process orderby clause
   SortOperator sort_oper(select_stmt->orderby_stmt());
   if (nullptr != select_stmt->orderby_stmt()) {
     sort_oper.add_child(top_op);
     top_op = &sort_oper;
   }
 
+  // 4. process select clause
   ProjectOperator project_oper;
   // project_oper.add_child(&pred_oper);
   project_oper.add_child(top_op);
@@ -558,6 +606,7 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
   
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to open operator");
+    session_event->set_response("FAILURE\n");
     return rc;
   }
 
@@ -579,6 +628,7 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
 
   if (rc != RC::RECORD_EOF) {
     LOG_WARN("something wrong while iterate operator. rc=%s", strrc(rc));
+    session_event->set_response("FAILURE\n");
     project_oper.close();
   } else {
     rc = project_oper.close();

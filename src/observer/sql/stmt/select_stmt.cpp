@@ -13,6 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/select_stmt.h"
+#include "sql/expr/expression.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/orderby_stmt.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
@@ -30,6 +32,12 @@ SelectStmt::~SelectStmt()
     delete expr;
   }
   projects_.clear();
+
+  if (nullptr != orderby_stmt_) {
+    delete orderby_stmt_;
+    orderby_stmt_ = nullptr;
+  }
+  
 }
 
 // static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
@@ -105,9 +113,74 @@ RC gen_project_expression(Expr *expr, const std::unordered_map<std::string, Tabl
     }
     res_expr = new BinaryExpression(expr->bexp->op, left_expr, right_expr, with_brace, expr->bexp->minus);
     return RC::SUCCESS;
+  } else if (expr->type == FUNC) {
+    // TO DO FUNC
+    Expression *param_expr1;
+    Expression *param_expr2;
+    switch (expr->fexp->type) {
+      case FUNC_LENGTH: {
+        RC rc = gen_project_expression(expr->fexp->params[0], table_map, tables, param_expr1);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+        // res_expr = new FuncExpression(expr->fexp->type, expr->fexp->param_size, param_expr1, param_expr2, with_brace);
+        break;
+      }
+      case FUNC_ROUND: {
+        RC rc = gen_project_expression(expr->fexp->params[0], table_map, tables, param_expr1);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+        if (expr->fexp->param_size == 2) {
+          rc = gen_project_expression(expr->fexp->params[1], table_map, tables, param_expr2);
+          if (rc != RC::SUCCESS) {
+            return rc;
+          }
+        }
+        // res_expr = new FuncExpression(expr->fexp->type, expr->fexp->param_size, param_expr1, param_expr2, with_brace);
+        break;
+      }
+      case FUNC_DATE_FORMAT: {
+        RC rc = gen_project_expression(expr->fexp->params[0], table_map, tables, param_expr1);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+        rc = gen_project_expression(expr->fexp->params[1], table_map, tables, param_expr2);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+        // res_expr = new FuncExpression(expr->fexp->type, expr->fexp->param_size, param_expr1, param_expr2, with_brace);
+        break;
+      }
+    }
+  } else if (AGGRFUNC == expr->type) {
+    // TODO(wbj)
+    if (UNARY == expr->afexp->param->type && 0 == expr->afexp->param->uexp->is_attr) {
+      // count(*) count(1) count(Value)
+      assert(AggrFuncType::COUNT == expr->afexp->type);
+      // substitue * or 1 with some field
+      Expression *tmp_value_exp = nullptr;
+      RC rc = gen_project_expression(expr->afexp->param, table_map, tables, tmp_value_exp);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      assert(ExprType::VALUE == tmp_value_exp->type());
+      auto aggr_func_expr = new AggrFuncExpression(
+          AggrFuncType::COUNT, new FieldExpr(tables[0], tables[0]->table_meta().field(1)), with_brace);
+      aggr_func_expr->set_param_value((ValueExpr *)tmp_value_exp);
+      res_expr = aggr_func_expr;
+      return RC::SUCCESS;
+    }
+    Expression *param = nullptr;
+    RC rc = gen_project_expression(expr->afexp->param, table_map, tables, param);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+    assert(nullptr != param && ExprType::FIELD == param->type());
+    res_expr = new AggrFuncExpression(expr->afexp->type, (FieldExpr *)param, with_brace);
+    return RC::SUCCESS;
   }
   return RC::SUCCESS;
-  // TO DO FUNC
 }
 
 RC SelectStmt::create(Db *db, const Selects &select_sql, Stmt *&stmt)
